@@ -9,6 +9,67 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 18
+
+      # 💡 GitHub上で「レーザー始点MOD」を直接ファイルとして作成する命令
+      - name: Create Laser Start Mod
+        run: |
+          mkdir -p examplemods
+          cat << 'EOF' > examplemods/laser_start.js
+          ModAPI.registerMod("LaserStartItem", "1.0", "YourName");
+          window.laserStartX = null;
+          window.laserStartY = null;
+          window.laserStartZ = null;
+          ModAPI.addEventListener("init", function() {
+              ModAPI.items.registerNewItem("laser_emitter", "レーザー送信機");
+          });
+          ModAPI.addEventListener("useitem", function(event) {
+              if (event.item && event.item.id === "laser_emitter") {
+                  window.laserStartX = event.targetX;
+                  window.laserStartY = event.targetY;
+                  window.laserStartZ = event.targetZ;
+                  ModAPI.displayToChat("§c[レーザー送信機] 始点を設置しました。終点を設置してください...");
+              }
+          });
+          EOF
+
+      # 💡 GitHub上で「レーザー終点MOD」を直接ファイルとして作成する命令
+      - name: Create Laser End Mod
+        run: |
+          cat << 'EOF' > examplemods/laser_end.js
+          ModAPI.registerMod("LaserEndItem", "1.0", "YourName");
+          ModAPI.addEventListener("init", function() {
+              ModAPI.items.registerNewItem("laser_receiver", "レーザー受信機");
+          });
+          ModAPI.addEventListener("useitem", function(event) {
+              if (event.item && event.item.id === "laser_receiver") {
+                  if (window.laserStartX !== null) {
+                      ModAPI.displayToChat("§6[レーザー受信機] 終点を設置！ビームを接続します。");
+                      let startX = window.laserStartX;
+                      let endX = event.targetX;
+                      let ly = event.targetY;
+                      let lz = event.targetZ;
+                      let minX = Math.min(startX, endX);
+                      let maxX = Math.max(startX, endX);
+                      ModAPI.addEventListener("update", function() {
+                          for (let x = minX; x <= maxX; x++) {
+                              ModAPI.spawnParticle("reddust", x + 0.5, ly + 1.2, lz + 0.5, 0, 0, 0);
+                          }
+                          let px = Math.floor(ModAPI.player.x);
+                          let py = Math.floor(ModAPI.player.y);
+                          let pz = Math.floor(ModAPI.player.z);
+                          if (py === ly && pz === lz && px >= minX && px <= maxX) {
+                              ModAPI.displayToChat("§4🚨 侵入者検知！レーザーに接触しました！");
+                              ModAPI.createExplosion(ModAPI.player.x, ModAPI.player.y, ModAPI.player.z, 4.0, true);
+                          }
+                      });
+                  } else {
+                      ModAPI.displayToChat("§c[エラー] 先に「レーザー送信機（始点）」を設置してください。");
+                  }
+              }
+          });
+          EOF
+
+      # マイクラを組み立てて出荷する命令
       - run: npm install
       - run: npm run build
       - uses: actions/upload-artifact@v4
